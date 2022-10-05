@@ -9,6 +9,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.intersvyaz.detection.ConnectionLevel
 import com.intersvyaz.detection.NetworkManager
 import com.intersvyaz.detection.NetworkStatus
 import com.intersvyaz.detection.R
@@ -26,7 +27,7 @@ class NetworkService : Service() {
     override fun onCreate() {
         super.onCreate()
         networkManager = NetworkManager(this)
-        startForeground(1, createNotification())
+        startForeground(1, serviceWorkingNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -55,12 +56,58 @@ class NetworkService : Service() {
                         Log.e(TAG, "Lost")
                     is NetworkStatus.Unavailable ->
                         Log.e(TAG, "Unavailable")
-                    is NetworkStatus.CapabilitiesChanging ->
-                        Log.e(TAG, "Changing ${it.internetExist()} ${it.connectionLevel()}")
+                    is NetworkStatus.CapabilitiesChanging -> {
+                        Log.e(TAG, "CapabilitiesChanging")
+
+                        val wifiExist = it.connectionLevel() != ConnectionLevel.WIFI_LEVEL_WEAK
+
+                        if (wifiExist && it.internetConnectionExist().not())
+                            noConnectionMessage()
+                    }
                 }
             }
         }
     }
+
+    private fun buildNotificationChannel() {
+        val notificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                notificationChannelId,
+                notificationChannelName,
+                NotificationManager.IMPORTANCE_HIGH,
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun noConnectionMessage() {
+        val notificationManager =
+            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        buildNotificationChannel()
+        makeNotificationBuilder("Внимание! Отсутствует интернет соединение!")
+            .also {
+                notificationManager.notify(2, it)
+            }
+    }
+
+    private fun serviceWorkingNotification(): Notification {
+        buildNotificationChannel()
+        return makeNotificationBuilder("Детекция проблем Wi-fi сети")
+    }
+
+    private fun makeNotificationBuilder(
+        text: String,
+    ) = NotificationCompat.Builder(this, notificationChannelId)
+        .apply {
+            setContentTitle("Уведомление")
+            setContentText(text)
+            setSmallIcon(R.drawable.wifi_icon)
+            priority = NotificationCompat.PRIORITY_HIGH
+        }.build()
 
     private fun stopService() {
         try {
@@ -70,27 +117,6 @@ class NetworkService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Service stopped before being started")
         }
-    }
-
-    private fun createNotification(): Notification {
-        val notificationManager =
-            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                notificationChannelId,
-                notificationChannelName,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply { description = notificationDescription }
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        return NotificationCompat.Builder(this, notificationChannelId).apply {
-            setContentTitle(notificationTitle)
-            setContentText(notificationText)
-            setSmallIcon(R.drawable.wifi_icon)
-            priority = NotificationCompat.PRIORITY_HIGH
-        }.build()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -124,9 +150,5 @@ class NetworkService : Service() {
         private const val ELAPSED_REALTIME_COEFFICIENT = 5000
         private const val notificationChannelId = "Network Channel"
         private const val notificationChannelName = "Network Service"
-        private const val notificationDescription = "Wi-Fi network problem detection"
-
-        private const val notificationTitle = "Уведомление"
-        private const val notificationText = "Детекция проблем Wi-fi сети"
     }
 }

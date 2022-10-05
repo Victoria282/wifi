@@ -10,6 +10,6 @@ sealed class NetworkStatus {
         private val internetExist: Boolean,
     ) : NetworkStatus() {
         fun connectionLevel() = level ?: ConnectionLevel.WIFI_LEVEL_WEAK
-        fun internetExist() = internetExist
+        fun internetConnectionExist() = internetExist
     }
 }
