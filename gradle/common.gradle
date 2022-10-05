@@ -1,0 +1,14 @@
+def getAppVersionSuffix() {
+    if (PUBLISH_RELEASE == "1")
+        return ""
+    else
+        return "-SNAPSHOT"
+}
+
+static def getAppVersionFullName() {
+    return rootProject.lib_version + getAppVersionSuffix()
+}
+
+ext {
+    appVersionFullName = getAppVersionFullName()
+}
